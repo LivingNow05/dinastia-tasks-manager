@@ -14,9 +14,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // Helper para llamadas a OpenRouter para redactar seguimientos
 async function generateFollowUpMessage(history) {
   const models = [
-    'google/gemini-flash-1.5',
-    'openai/gpt-4o-mini',
-    'google/gemini-2.0-flash-exp'
+    'google/gemini-2.5-flash',
+    'google/gemini-2.5-flash-lite',
+    'openai/gpt-4o-mini'
   ];
 
   const formattedHistory = history.map(h => `[${h.type.toUpperCase()}] ${h.content || '(Mensaje vacío/multimedia)'}`).join('\n');
