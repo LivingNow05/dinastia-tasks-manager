@@ -41,7 +41,15 @@ async function initDb() {
       );
     `);
 
-    // 3. Insertar tarea por defecto si no hay ninguna
+    // 3. Limpiar logs que quedaron huérfanos en estado 'running' al reiniciar
+    await client.query(`
+      UPDATE cloud_tasks_logs 
+      SET status = 'error', 
+          log_output = log_output || '\n[SYSTEM] Proceso interrumpido debido a un reinicio del servidor.'
+      WHERE status = 'running';
+    `);
+
+    // 4. Insertar tarea por defecto si no hay ninguna
     const countRes = await client.query('SELECT COUNT(*) FROM cloud_tasks_config;');
     if (parseInt(countRes.rows[0].count) === 0) {
       await client.query(`
