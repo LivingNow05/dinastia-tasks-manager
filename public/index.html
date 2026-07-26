@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Tasks Scheduler | Dinastía</title>
+  <!-- Google Fonts Outfit -->
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="glass-bg"></div>
+  
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-icon">⚡</span>
+        <div>
+          <h1>Dinastía Cloud Scheduler</h1>
+          <p class="subtitle">Gestión de tareas programadas y seguimiento en la nube</p>
+        </div>
+      </div>
+      <div class="server-status">
+        <span class="status-indicator online"></span>
+        <span class="status-text">Servidor Activo (VPS)</span>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <!-- Sección Izquierda: Listado de Tareas -->
+      <section class="tasks-section card">
+        <div class="card-header">
+          <h2>Tareas Automatizadas</h2>
+          <p>Activa, edita o fuerza la ejecución de tus automatizaciones.</p>
+        </div>
+        <div class="tasks-list" id="tasksList">
+          <div class="loading-spinner">Cargando tareas...</div>
+        </div>
+      </section>
+
+      <!-- Sección Derecha: Logs de Ejecución -->
+      <section class="logs-section card">
+        <div class="card-header">
+          <h2>Consola de Ejecuciones</h2>
+          <p>Historial y logs en tiempo real de los envíos de WhatsApp.</p>
+        </div>
+        <div class="logs-container">
+          <div class="logs-history-list" id="logsHistoryList">
+            <p class="empty-state">Selecciona una tarea para ver su historial de logs.</p>
+          </div>
+          <div class="log-details-panel">
+            <h3>Detalle del Log de Ejecución</h3>
+            <pre class="log-console" id="logConsole">Consola vacía. Selecciona una ejecución del historial superior.</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
