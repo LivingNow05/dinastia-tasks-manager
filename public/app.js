@@ -220,3 +220,46 @@ function stopPolling() {
     console.log('Polling detenido.');
   }
 }
+
+// Abrir modal de nueva tarea
+function openNewTaskModal() {
+  document.getElementById('newTaskModal').style.display = 'flex';
+}
+
+// Cerrar modal de nueva tarea
+function closeNewTaskModal() {
+  document.getElementById('newTaskModal').style.display = 'none';
+  document.getElementById('newTaskForm').reset();
+}
+
+// Crear nueva tarea por API
+async function createNewTask(event) {
+  event.preventDefault();
+  
+  const name = document.getElementById('taskName').value;
+  const type = document.getElementById('taskType').value;
+  const cron_expr = document.getElementById('taskCron').value;
+  const prompt = document.getElementById('taskPrompt').value;
+
+  try {
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ name, type, cron_expr, prompt })
+    });
+
+    const data = await res.json();
+    
+    if (res.status === 201) {
+      alert('✓ Tarea programada creada y programada con éxito.');
+      closeNewTaskModal();
+      loadTasks();
+    } else {
+      alert('Error: ' + (data.error || 'No se pudo crear la tarea'));
+    }
+  } catch (err) {
+    alert('Error de conexión: ' + err.message);
+  }
+}

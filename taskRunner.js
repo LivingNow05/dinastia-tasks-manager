@@ -13,43 +13,58 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Helper para llamadas a OpenRouter para redactar seguimientos
 async function generateFollowUpMessage(history) {
-  try {
-    const formattedHistory = history.map(h => `[${h.type.toUpperCase()}] ${h.content || '(Mensaje vacío/multimedia)'}`).join('\n');
+  const models = [
+    'google/gemini-flash-1.5',
+    'openai/gpt-4o-mini',
+    'google/gemini-2.0-flash-exp'
+  ];
 
-    const systemPrompt = `Eres Anthony, un asesor de ventas empático de la tienda de mascotas "Dinastía Cachorros".
+  const formattedHistory = history.map(h => `[${h.type.toUpperCase()}] ${h.content || '(Mensaje vacío/multimedia)'}`).join('\n');
+
+  const systemPrompt = `Eres Anthony, un asesor de ventas empático de la tienda de mascotas "Dinastía Cachorros".
 Se te proporcionará el historial de los últimos mensajes de un chat de WhatsApp con un cliente.
 Tu objetivo es escribir un mensaje de seguimiento súper corto (máximo 1 o 2 oraciones, de 15 a 30 palabras).
 
 Reglas estrictas:
 - El tono debe ser muy natural, amigable y conversacional (humano, no robótico).
 - Sé extremadamente breve. Una o dos oraciones cortas bastan.
-- Si el bot o el asesor ya le cotizaron y prometieron fotos/videos en el pasado pero no se enviaron (o no hay confirmación de que se enviaran), discúlpate cortésmente por la demora y pregúntale si todavía quiere que se los envíes.
+- Si el bot o el asesor ya le cotizaron y prometieron fotos/videos en el pasado pero no se enviaron (o no hay confirmación de que se enviaran), discúlapte cortésmente por la demora y pregúntale si todavía quiere que se los envíes.
 - Si ya se le cotizó pero no respondió, pregúntale de forma muy ligera si le quedó alguna duda o si sigue interesado en el cachorro/gatito.
 - NUNCA menciones la palabra "videollamada" ni propongas hacer una videollamada.
 - No uses saludos exagerados ni hashtags.
 - Responde ÚNICAMENTE con el texto del mensaje que se le enviará al cliente por WhatsApp. No agregues introducciones, explicaciones ni comillas alrededor del mensaje.`;
 
-    const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-      model: 'google/gemini-2.0-flash-lite:free',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Historial reciente del chat:\n${formattedHistory}` }
-      ]
-    }, {
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://tasks.localexpertapp.com',
-        'X-Title': 'Dinastia Tasks Manager'
-      },
-      timeout: 15000
-    });
+  let lastError;
+  for (const model of models) {
+    try {
+      console.log(`Intentando generar mensaje con modelo OpenRouter: ${model}...`);
+      const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Historial reciente del chat:\n${formattedHistory}` }
+        ]
+      }, {
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://tasks.localexpertapp.com',
+          'X-Title': 'Dinastia Tasks Manager'
+        },
+        timeout: 15000
+      });
 
-    return response.data.choices[0].message.content.trim();
-  } catch (err) {
-    console.error('Error llamando a OpenRouter:', err.message);
-    throw new Error('No se pudo generar el mensaje con OpenRouter: ' + err.message);
+      if (response.data && response.data.choices && response.data.choices[0]) {
+        console.log(`✓ Mensaje generado exitosamente con el modelo: ${model}`);
+        return response.data.choices[0].message.content.trim();
+      }
+    } catch (err) {
+      console.warn(`⚠️ Falló el modelo ${model}: ${err.message}`);
+      lastError = err;
+    }
   }
+
+  throw new Error('Todos los modelos de OpenRouter fallaron. Último error: ' + lastError.message);
 }
 
 // Helper para enviar mensaje por Evolution API

@@ -122,6 +122,31 @@ app.post('/api/tasks/:id/run', async (req, res) => {
   }
 });
 
+// 3.5. Crear una nueva tarea manualmente
+app.post('/api/tasks', async (req, res) => {
+  const { name, type, prompt, cron_expr } = req.body;
+  if (!name || !type || !cron_expr) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (name, type, cron_expr)' });
+  }
+  if (!cron.validate(cron_expr)) {
+    return res.status(400).json({ error: 'La expresión cron provista es inválida' });
+  }
+  try {
+    const result = await pool.query(
+      `INSERT INTO cloud_tasks_config (name, type, prompt, cron_expr, active)
+       VALUES ($1, $2, $3, $4, true) RETURNING *;`,
+      [name, type, prompt, cron_expr]
+    );
+    
+    // Recargar el planificador en memoria para registrar el nuevo cron job
+    await reloadScheduler();
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 4. Obtener el historial de ejecuciones y logs de una tarea
 app.get('/api/tasks/:id/logs', async (req, res) => {
   const { id } = req.params;
