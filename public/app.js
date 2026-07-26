@@ -7,6 +7,28 @@ document.addEventListener('DOMContentLoaded', () => {
   loadTasks();
 });
 
+// Helper para convertir la expresión cron a un texto amigable y legible
+function formatCronFriendly(cronExpr) {
+  try {
+    const parts = cronExpr.split(' ');
+    if (parts.length === 5) {
+      const [min, hour, dom, mon, dow] = parts;
+      const pad = (num) => String(num).padStart(2, '0');
+      const timeStr = `${pad(hour)}:${pad(min)}`;
+      
+      if (dom === '*' && mon === '*' && dow === '*') {
+        return `Todos los días a las ${timeStr}`;
+      }
+      if (dom === '*' && mon === '*' && dow !== '*') {
+        const days = { '1': 'Lunes', '2': 'Martes', '3': 'Miércoles', '4': 'Jueves', '5': 'Viernes', '6': 'Sábado', '0': 'Domingo' };
+        const dayName = days[dow] || `Día ${dow}`;
+        return `Los ${dayName} a las ${timeStr}`;
+      }
+    }
+  } catch (e) {}
+  return cronExpr;
+}
+
 // Obtener y renderizar las tareas
 async function loadTasks() {
   const listEl = document.getElementById('tasksList');
@@ -35,12 +57,15 @@ async function loadTasks() {
         </div>
         <p class="task-desc">${task.prompt || 'Sin descripción'}</p>
         <div class="task-meta">
-          <span>Cron: <code class="cron-spec">${task.cron_expr}</code></span>
+          <span>Horario: <code class="cron-spec">${formatCronFriendly(task.cron_expr)}</code></span>
         </div>
         <div class="task-actions">
           <button class="btn btn-primary" onclick="runTaskNow(event, ${task.id})">⚡ Ejecutar Ahora</button>
           <button class="btn btn-secondary" onclick="toggleTask(event, ${task.id})">
             ${task.active ? 'Pausar' : 'Activar'}
+          </button>
+          <button class="btn btn-secondary btn-danger" onclick="deleteTask(event, ${task.id})" style="border-color: rgba(239, 68, 68, 0.3); color: var(--danger-color);">
+            🗑️ Eliminar
           </button>
         </div>
       `;
@@ -63,19 +88,8 @@ function selectTask(taskId) {
   // Resaltar tarjeta seleccionada en la UI
   const cards = document.querySelectorAll('.task-card');
   cards.forEach(card => card.classList.remove('selected'));
-  
-  // Buscar la tarjeta correcta y añadirle la clase
-  loadTasksListUISelection();
 
   loadLogs(taskId);
-}
-
-function loadTasksListUISelection() {
-  // Cargar selección visual sin recargar llamadas pesadas
-  const listEl = document.getElementById('tasksList');
-  const cards = listEl.children;
-  // Solo actualizamos las clases
-  loadTasks();
 }
 
 // Alternar el estado activo/pausado de una tarea
@@ -89,6 +103,22 @@ async function toggleTask(event, taskId) {
     }
   } catch (err) {
     alert('Error al alternar el estado de la tarea: ' + err.message);
+  }
+}
+
+// Eliminar una tarea programada
+async function deleteTask(event, taskId) {
+  event.stopPropagation(); // Evitar click en la tarjeta completa
+  if (!confirm('¿Estás seguro de que deseas eliminar esta tarea de forma permanente?')) return;
+  try {
+    const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      if (selectedTaskId === taskId) selectedTaskId = null;
+      loadTasks();
+    }
+  } catch (err) {
+    alert('Error al eliminar la tarea: ' + err.message);
   }
 }
 
@@ -168,15 +198,8 @@ async function loadLogs(taskId) {
 function selectLog(logId, fullOutput) {
   selectedLogId = logId;
   
-  // Actualizar selección visual
-  const rows = document.querySelectorAll('.log-row');
-  rows.forEach(row => row.classList.remove('selected'));
-  
   // Cargar consola
   document.getElementById('logConsole').textContent = fullOutput || 'Ejecutando sin output aún...';
-  
-  // Recargar la lista de logs para asegurar clase "selected"
-  loadLogs(selectedTaskId);
 }
 
 // Iniciar polling de logs cada 3 segundos
@@ -224,6 +247,7 @@ function stopPolling() {
 // Abrir modal de nueva tarea
 function openNewTaskModal() {
   document.getElementById('newTaskModal').style.display = 'flex';
+  handleFrequencyChange(); // Inicializar visualización
 }
 
 // Cerrar modal de nueva tarea
@@ -232,14 +256,56 @@ function closeNewTaskModal() {
   document.getElementById('newTaskForm').reset();
 }
 
+// Reactividad en el formulario del modal
+function handleFrequencyChange() {
+  const freq = document.getElementById('taskFrequency').value;
+  const timeRow = document.getElementById('timeRow');
+  const timeGroup = document.getElementById('timeGroup');
+  const dayOfWeekGroup = document.getElementById('dayOfWeekGroup');
+  const cronGroup = document.getElementById('cronGroup');
+
+  if (freq === 'daily') {
+    timeRow.style.display = 'flex';
+    timeGroup.style.display = 'flex';
+    dayOfWeekGroup.style.display = 'none';
+    cronGroup.style.display = 'none';
+  } else if (freq === 'weekly') {
+    timeRow.style.display = 'flex';
+    timeGroup.style.display = 'flex';
+    dayOfWeekGroup.style.display = 'flex';
+    cronGroup.style.display = 'none';
+  } else if (freq === 'cron') {
+    timeRow.style.display = 'none';
+    cronGroup.style.display = 'flex';
+  }
+}
+
 // Crear nueva tarea por API
 async function createNewTask(event) {
   event.preventDefault();
   
   const name = document.getElementById('taskName').value;
   const type = document.getElementById('taskType').value;
-  const cron_expr = document.getElementById('taskCron').value;
+  const freq = document.getElementById('taskFrequency').value;
   const prompt = document.getElementById('taskPrompt').value;
+
+  // Construir expresión cron a partir de las entradas visuales
+  let cron_expr = '';
+  if (freq === 'daily') {
+    const timeVal = document.getElementById('taskTime').value;
+    if (!timeVal) return alert('Por favor, selecciona una hora de ejecución.');
+    const [hour, min] = timeVal.split(':');
+    cron_expr = `${parseInt(min)} ${parseInt(hour)} * * *`;
+  } else if (freq === 'weekly') {
+    const timeVal = document.getElementById('taskTime').value;
+    const dayOfWeek = document.getElementById('taskDayOfWeek').value;
+    if (!timeVal) return alert('Por favor, selecciona una hora de ejecución.');
+    const [hour, min] = timeVal.split(':');
+    cron_expr = `${parseInt(min)} ${parseInt(hour)} * * ${dayOfWeek}`;
+  } else if (freq === 'cron') {
+    cron_expr = document.getElementById('taskCron').value;
+    if (!cron_expr) return alert('Por favor, introduce una expresión cron válida.');
+  }
 
   try {
     const res = await fetch('/api/tasks', {

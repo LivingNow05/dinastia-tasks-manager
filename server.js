@@ -147,6 +147,21 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
+// 3.6. Eliminar una tarea programada
+app.delete('/api/tasks/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM cloud_tasks_config WHERE id = $1;', [id]);
+    
+    // Recargar planificador de cron en memoria
+    await reloadScheduler();
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 4. Obtener el historial de ejecuciones y logs de una tarea
 app.get('/api/tasks/:id/logs', async (req, res) => {
   const { id } = req.params;

@@ -79,8 +79,34 @@
           </select>
         </div>
         <div class="form-group">
-          <label for="taskCron">Expresión Cron (Frecuencia)</label>
-          <input type="text" id="taskCron" required placeholder="Ej: 0 10 * * * (Todos los días a las 10:00 AM)">
+          <label for="taskFrequency">Frecuencia</label>
+          <select id="taskFrequency" required onchange="handleFrequencyChange()">
+            <option value="daily" selected>Todos los días</option>
+            <option value="weekly">Semanal</option>
+            <option value="cron">Personalizado (Cron)</option>
+          </select>
+        </div>
+        <div class="form-row" id="timeRow" style="display: flex; gap: 16px;">
+          <div class="form-group" id="timeGroup" style="flex: 1;">
+            <label for="taskTime">Hora de Ejecución</label>
+            <input type="time" id="taskTime" value="10:00">
+          </div>
+          <div class="form-group" id="dayOfWeekGroup" style="flex: 1; display: none;">
+            <label for="taskDayOfWeek">Día de la Semana</label>
+            <select id="taskDayOfWeek">
+              <option value="1" selected>Lunes</option>
+              <option value="2">Martes</option>
+              <option value="3">Miércoles</option>
+              <option value="4">Jueves</option>
+              <option value="5">Viernes</option>
+              <option value="6">Sábado</option>
+              <option value="0">Domingo</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="cronGroup" style="display: none;">
+          <label for="taskCron">Expresión Cron</label>
+          <input type="text" id="taskCron" placeholder="Ej: 0 10 * * *">
           <small style="color: var(--text-secondary); font-size: 11px;">Formato: Minutos Horas Día-del-mes Mes Día-de-la-semana</small>
         </div>
         <div class="form-group">
