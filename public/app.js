@@ -1,6 +1,7 @@
 let selectedTaskId = null;
 let selectedLogId = null;
 let pollInterval = null;
+let currentTab = 'summary'; // 'summary' o 'console'
 
 // Inicialización de la App
 document.addEventListener('DOMContentLoaded', () => {
@@ -138,6 +139,110 @@ async function runTaskNow(event, taskId) {
   }
 }
 
+// Intercambiar vista entre Resumen y Consola Raw
+function switchLogTab(tabName) {
+  currentTab = tabName;
+  const btnSummary = document.getElementById('btnTabSummary');
+  const btnConsole = document.getElementById('btnTabConsole');
+  const summaryContent = document.getElementById('logTabSummaryContent');
+  const consoleContent = document.getElementById('logConsole');
+
+  if (tabName === 'summary') {
+    btnSummary.classList.add('active');
+    btnConsole.classList.remove('active');
+    summaryContent.style.display = 'block';
+    consoleContent.style.display = 'none';
+  } else {
+    btnSummary.classList.remove('active');
+    btnConsole.classList.add('active');
+    summaryContent.style.display = 'none';
+    consoleContent.style.display = 'block';
+  }
+}
+
+// Función analizadora del log string para extraer envíos estructurados
+function parseLogOutput(logStr) {
+  if (!logStr) return [];
+  const clientBlocks = logStr.split('--- PROCESANDO CLIENTE');
+  const results = [];
+  
+  for (let i = 1; i < clientBlocks.length; i++) {
+    const block = clientBlocks[i];
+    
+    // Extraer número
+    const numberMatch = block.match(/\(\d+\/\d+\):\s*([^\s-]+)/);
+    const number = numberMatch ? numberMatch[1].replace('@s.whatsapp.net', '') : 'Desconocido';
+    
+    // Extraer mensaje generado
+    const msgMatch = block.match(/Mensaje generado:\s*["'«]([^"']+)["'»]/);
+    const message = msgMatch ? msgMatch[1] : '';
+    
+    // Extraer Message ID
+    const idMatch = block.match(/ID de mensaje:\s*([A-Za-z0-9]+)/);
+    const messageId = idMatch ? idMatch[1] : '';
+    
+    let status = 'error';
+    let details = '';
+    
+    if (block.includes('Enviado con éxito')) {
+      status = 'success';
+    } else {
+      const errMatch = block.match(/Error procesando cliente[^:]*:\s*([^\n\r]+)/);
+      details = errMatch ? errMatch[1] : 'Error en el proceso de envío';
+    }
+    
+    results.push({
+      number,
+      message,
+      messageId,
+      status,
+      details
+    });
+  }
+  return results;
+}
+
+// Renderizar la tabla interactiva de resultados
+function renderSummaryTable(parsedLogs) {
+  const container = document.getElementById('logTabSummaryContent');
+  if (parsedLogs.length === 0) {
+    container.innerHTML = '<p class="empty-state">No se registraron envíos de mensajes en esta ejecución o está en proceso de inicio...</p>';
+    return;
+  }
+  
+  let html = `
+    <table class="summary-table" style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--card-border); color: var(--text-secondary);">
+          <th style="padding: 10px;">Teléfono</th>
+          <th style="padding: 10px;">Mensaje de Seguimiento</th>
+          <th style="padding: 10px;">ID Envío / Detalles</th>
+          <th style="padding: 10px;">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  
+  parsedLogs.forEach(log => {
+    const isSuccess = log.status === 'success';
+    const statusText = isSuccess ? '✅ Enviado' : '❌ Fallido';
+    const color = isSuccess ? 'var(--success-color)' : 'var(--danger-color)';
+    const idOrError = isSuccess ? `<code class="cron-spec" style="font-size: 11px;">${log.messageId}</code>` : `<span style="color: var(--danger-color); font-size: 12px;">${log.details}</span>`;
+    
+    html += `
+      <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.03);">
+        <td style="padding: 12px 10px; font-weight: 500; white-space: nowrap;">+${log.number}</td>
+        <td style="padding: 12px 10px; color: var(--text-primary); line-height: 1.4;">${log.message || '—'}</td>
+        <td style="padding: 12px 10px;">${idOrError}</td>
+        <td style="padding: 12px 10px; font-weight: 500; color: ${color}; white-space: nowrap;">${statusText}</td>
+      </tr>
+    `;
+  });
+  
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
 // Cargar historial de logs de una tarea específica
 async function loadLogs(taskId) {
   const historyListEl = document.getElementById('logsHistoryList');
@@ -148,6 +253,7 @@ async function loadLogs(taskId) {
     if (logs.length === 0) {
       historyListEl.innerHTML = '<p class="empty-state">No hay historial de ejecuciones registrado.</p>';
       document.getElementById('logConsole').textContent = 'Consola vacía.';
+      document.getElementById('logTabSummaryContent').innerHTML = '<p class="empty-state">Sin datos de envíos.</p>';
       return;
     }
 
@@ -159,7 +265,13 @@ async function loadLogs(taskId) {
       const isSelected = selectedLogId === log.id || (!selectedLogId && index === 0);
       if (isSelected) {
         selectedLogId = log.id;
+        
+        // Cargar consola raw
         document.getElementById('logConsole').textContent = log.log_output || 'Ejecutando sin output aún...';
+        
+        // Renderizar tabla resumen parseada
+        const parsed = parseLogOutput(log.log_output);
+        renderSummaryTable(parsed);
       }
 
       if (log.status === 'running') {
@@ -198,8 +310,15 @@ async function loadLogs(taskId) {
 function selectLog(logId, fullOutput) {
   selectedLogId = logId;
   
-  // Cargar consola
+  // Cargar consola raw
   document.getElementById('logConsole').textContent = fullOutput || 'Ejecutando sin output aún...';
+  
+  // Renderizar tabla resumen parseada
+  const parsed = parseLogOutput(fullOutput);
+  renderSummaryTable(parsed);
+  
+  // Recargar la lista de logs para asegurar clase "selected"
+  loadLogs(selectedTaskId);
 }
 
 // Iniciar polling de logs cada 3 segundos
@@ -218,7 +337,12 @@ function startPolling(taskId, logId) {
         if (selectedLogId === logId) {
           const consoleEl = document.getElementById('logConsole');
           consoleEl.textContent = currentLog.log_output || 'Ejecutando sin output aún...';
-          // Auto-scroll al final del log
+          
+          // Actualizar tabla resumen parseada
+          const parsed = parseLogOutput(currentLog.log_output);
+          renderSummaryTable(parsed);
+
+          // Auto-scroll al final de la consola
           consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 

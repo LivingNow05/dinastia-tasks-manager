@@ -52,8 +52,17 @@
             <p class="empty-state">Selecciona una tarea para ver su historial de logs.</p>
           </div>
           <div class="log-details-panel">
-            <h3>Detalle del Log de Ejecución</h3>
-            <pre class="log-console" id="logConsole">Consola vacía. Selecciona una ejecución del historial superior.</pre>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3>Detalle de la Ejecución</h3>
+              <div class="tab-selectors" style="display: flex; gap: 8px;">
+                <button id="btnTabSummary" class="btn btn-secondary active" onclick="switchLogTab('summary')" style="padding: 4px 10px; font-size: 11px;">📊 Resumen de Envíos</button>
+                <button id="btnTabConsole" class="btn btn-secondary" onclick="switchLogTab('console')" style="padding: 4px 10px; font-size: 11px;">💻 Consola Raw</button>
+              </div>
+            </div>
+            <div id="logTabSummaryContent" class="tab-content" style="flex: 1; overflow: auto; background: rgba(15, 23, 42, 0.15); border: 1px solid var(--card-border); border-radius: 16px; padding: 16px;">
+              <p class="empty-state">Selecciona una ejecución para ver el resumen de envíos.</p>
+            </div>
+            <pre class="log-console" id="logConsole" style="display: none;">Consola vacía. Selecciona una ejecución del historial superior.</pre>
           </div>
         </div>
       </section>
