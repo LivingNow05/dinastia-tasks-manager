@@ -1,3 +1,4 @@
+let allTasks = [];
 let selectedTaskId = null;
 let selectedLogId = null;
 let pollInterval = null;
@@ -36,6 +37,7 @@ async function loadTasks() {
   try {
     const res = await fetch('/api/tasks');
     const tasks = await res.json();
+    allTasks = tasks; // Guardar en caché local para edición rápida
 
     if (tasks.length === 0) {
       listEl.innerHTML = '<p class="empty-state">No hay tareas programadas creadas.</p>';
@@ -61,9 +63,12 @@ async function loadTasks() {
           <span>Horario: <code class="cron-spec">${formatCronFriendly(task.cron_expr)}</code></span>
         </div>
         <div class="task-actions">
-          <button class="btn btn-primary" onclick="runTaskNow(event, ${task.id})">⚡ Ejecutar Ahora</button>
+          <button class="btn btn-primary" onclick="runTaskNow(event, ${task.id})">⚡ Ejecutar</button>
           <button class="btn btn-secondary" onclick="toggleTask(event, ${task.id})">
             ${task.active ? 'Pausar' : 'Activar'}
+          </button>
+          <button class="btn btn-secondary" onclick="editTask(event, ${task.id})">
+            ✏️ Editar
           </button>
           <button class="btn btn-secondary btn-danger" onclick="deleteTask(event, ${task.id})" style="border-color: rgba(239, 68, 68, 0.3); color: var(--danger-color);">
             🗑️ Eliminar
@@ -368,16 +373,75 @@ function stopPolling() {
   }
 }
 
-// Abrir modal de nueva tarea
+// Abrir modal de nueva tarea (para creación)
 function openNewTaskModal() {
-  document.getElementById('newTaskModal').style.display = 'flex';
+  document.getElementById('taskId').value = '';
+  document.getElementById('modalTitle').textContent = 'Crear Nueva Tarea Programada';
+  document.getElementById('modalDesc').textContent = 'Configura los parámetros para la automatización en la nube.';
+  document.getElementById('btnSubmitTask').textContent = 'Crear Tarea';
+  
+  document.getElementById('newTaskForm').reset();
   handleFrequencyChange(); // Inicializar visualización
+  document.getElementById('newTaskModal').style.display = 'flex';
+}
+
+// Abrir modal para editar tarea existente
+function editTask(event, taskId) {
+  event.stopPropagation(); // Evitar clicks en la tarjeta
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  // Llenar campos del modal
+  document.getElementById('taskId').value = task.id;
+  document.getElementById('modalTitle').textContent = 'Editar Tarea Programada';
+  document.getElementById('modalDesc').textContent = 'Modifica los parámetros de tu automatización en la nube.';
+  document.getElementById('btnSubmitTask').textContent = 'Guardar Cambios';
+
+  document.getElementById('taskName').value = task.name;
+  document.getElementById('taskType').value = task.type;
+  document.getElementById('taskPrompt').value = task.prompt || '';
+
+  // Parsear la expresión cron para rellenar los selectores visuales
+  populateModalWithCron(task.cron_expr);
+
+  document.getElementById('newTaskModal').style.display = 'flex';
 }
 
 // Cerrar modal de nueva tarea
 function closeNewTaskModal() {
   document.getElementById('newTaskModal').style.display = 'none';
   document.getElementById('newTaskForm').reset();
+}
+
+// Parsear expresión cron de regreso al modal
+function populateModalWithCron(cronExpr) {
+  try {
+    const parts = cronExpr.split(' ');
+    if (parts.length === 5) {
+      const [min, hour, dom, mon, dow] = parts;
+      const pad = (num) => String(num).padStart(2, '0');
+      const timeVal = `${pad(hour)}:${pad(min)}`;
+      
+      if (dom === '*' && mon === '*' && dow === '*') {
+        document.getElementById('taskFrequency').value = 'daily';
+        document.getElementById('taskTime').value = timeVal;
+        handleFrequencyChange();
+        return;
+      }
+      if (dom === '*' && mon === '*' && dow !== '*') {
+        document.getElementById('taskFrequency').value = 'weekly';
+        document.getElementById('taskTime').value = timeVal;
+        document.getElementById('taskDayOfWeek').value = dow;
+        handleFrequencyChange();
+        return;
+      }
+    }
+  } catch (e) {}
+  
+  // Fallback a Cron manual si la expresión es compleja
+  document.getElementById('taskFrequency').value = 'cron';
+  document.getElementById('taskCron').value = cronExpr;
+  handleFrequencyChange();
 }
 
 // Reactividad en el formulario del modal
@@ -404,10 +468,11 @@ function handleFrequencyChange() {
   }
 }
 
-// Crear nueva tarea por API
+// Crear o Editar tarea por API
 async function createNewTask(event) {
   event.preventDefault();
   
+  const taskId = document.getElementById('taskId').value;
   const name = document.getElementById('taskName').value;
   const type = document.getElementById('taskType').value;
   const freq = document.getElementById('taskFrequency').value;
@@ -431,9 +496,13 @@ async function createNewTask(event) {
     if (!cron_expr) return alert('Por favor, introduce una expresión cron válida.');
   }
 
+  const isEditing = taskId !== '';
+  const url = isEditing ? `/api/tasks/${taskId}` : '/api/tasks';
+  const method = isEditing ? 'PUT' : 'POST';
+
   try {
-    const res = await fetch('/api/tasks', {
-      method: 'POST',
+    const res = await fetch(url, {
+      method,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -442,12 +511,12 @@ async function createNewTask(event) {
 
     const data = await res.json();
     
-    if (res.status === 201) {
-      alert('✓ Tarea programada creada y programada con éxito.');
+    if (res.status === 200 || res.status === 201) {
+      alert(isEditing ? '✓ Cambios de la tarea guardados con éxito.' : '✓ Tarea programada creada y programada con éxito.');
       closeNewTaskModal();
       loadTasks();
     } else {
-      alert('Error: ' + (data.error || 'No se pudo crear la tarea'));
+      alert('Error: ' + (data.error || 'No se pudo guardar la tarea'));
     }
   } catch (err) {
     alert('Error de conexión: ' + err.message);

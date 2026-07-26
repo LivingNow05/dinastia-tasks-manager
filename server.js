@@ -147,6 +147,37 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
+// 3.5.5. Editar una tarea programada
+app.put('/api/tasks/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, type, prompt, cron_expr } = req.body;
+  if (!name || !type || !cron_expr) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (name, type, cron_expr)' });
+  }
+  if (!cron.validate(cron_expr)) {
+    return res.status(400).json({ error: 'La expresión cron provista es inválida' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE cloud_tasks_config 
+       SET name = $1, type = $2, prompt = $3, cron_expr = $4, updated_at = NOW()
+       WHERE id = $5 RETURNING *;`,
+      [name, type, prompt, cron_expr, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Tarea no encontrada' });
+    }
+
+    // Recargar el planificador en memoria
+    await reloadScheduler();
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 3.6. Eliminar una tarea programada
 app.delete('/api/tasks/:id', async (req, res) => {
   const { id } = req.params;
