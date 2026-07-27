@@ -39,7 +39,7 @@ async function reloadScheduler() {
         return;
       }
 
-      // Programar la tarea
+      // Programar la tarea con zona horaria de Bogotá
       const job = cron.schedule(task.cron_expr, async () => {
         appendSystemLog(`[Cron Trigger] Iniciando ejecución programada de: "${task.name}"`);
         if (task.type === 'whatsapp_followup') {
@@ -47,6 +47,9 @@ async function reloadScheduler() {
         } else {
           appendSystemLog(`⚠️ Tipo de tarea desconocido: ${task.type}`);
         }
+      }, {
+        scheduled: true,
+        timezone: "America/Bogota"
       });
 
       activeCronJobs[task.id] = job;
