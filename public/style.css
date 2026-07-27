@@ -126,11 +126,10 @@ body {
   100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
-/* Layout Main */
 .app-main {
   flex: 1;
   display: grid;
-  grid-template-columns: 420px 1fr;
+  grid-template-columns: 420px minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -248,6 +247,7 @@ body {
 
 .task-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -486,7 +486,7 @@ body {
 }
 
 /* Responsive / Mobile Styles */
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .app-container {
     height: auto;
     min-height: 100vh;
