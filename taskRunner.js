@@ -159,7 +159,7 @@ async function runWhatsAppFollowUps(taskId) {
         SELECT id, created_at, message::text as msg_str
         FROM dinastia_chat_histories
         WHERE session_id = $1
-        ORDER BY id DESC LIMIT 5;
+        ORDER BY id DESC LIMIT 15;
       `, [session]);
 
       const history = historyRes.rows;
@@ -176,13 +176,66 @@ async function runWhatsAppFollowUps(taskId) {
       // Validar que el cliente no haya respondido (último mensaje no debe ser 'human')
       if (latestMsg.type === 'human') continue;
 
-      // Validar antigüedad
+      // Buscar el último mensaje del cliente ('human') en el historial
+      let firstHumanIndex = -1;
+      for (let i = 0; i < history.length; i++) {
+        try {
+          const msg = JSON.parse(history[i].msg_str);
+          if (msg.type === 'human') {
+            firstHumanIndex = i;
+            break;
+          }
+        } catch (e) {
+          // ignorar
+        }
+      }
+
+      // Si no hay mensajes del cliente en los últimos 15 mensajes, omitir para evitar spam masivo
+      if (firstHumanIndex === -1) {
+        continue;
+      }
+
+      // Extraer los mensajes salientes (nuestros) desde el último mensaje del cliente
+      const outboundMessages = [];
+      for (let i = 0; i < firstHumanIndex; i++) {
+        try {
+          const msgObj = JSON.parse(history[i].msg_str);
+          outboundMessages.push({
+            type: msgObj.type,
+            content: msgObj.content,
+            created_at: new Date(history[i].created_at)
+          });
+        } catch (e) {
+          // ignorar
+        }
+      }
+
+      // Si detectamos una brecha de tiempo significativa (ej. > 12 horas) entre mensajes salientes consecutivos,
+      // significa que ya se envió un seguimiento anterior.
+      let followUpAlreadySent = false;
+      const gapThresholdMs = 12 * 60 * 60 * 1000; // 12 horas
+      for (let i = 0; i < outboundMessages.length - 1; i++) {
+        const gap = outboundMessages[i].created_at - outboundMessages[i + 1].created_at;
+        if (gap > gapThresholdMs) {
+          followUpAlreadySent = true;
+          break;
+        }
+      }
+
+      if (followUpAlreadySent) {
+        continue;
+      }
+
+      // Validar antigüedad del último mensaje enviado
       const lastMsgDate = new Date(latestMsgRow.created_at);
       const ageMs = now - lastMsgDate;
 
       if (ageMs >= minAgeMs && ageMs <= maxAgeMs) {
-        // Mapear historial en orden cronológico
-        const formattedHistory = history.reverse().map(h => {
+        // Tomar solo los últimos 5 mensajes para mantener el comportamiento original de OpenRouter
+        const historyForLLM = history.slice(0, 5);
+
+        // Mapear historial en orden cronológico (de más antiguo a más nuevo)
+        const formattedHistory = [...historyForLLM].reverse().map(h => {
           try {
             const parsed = JSON.parse(h.msg_str);
             return { type: parsed.type, content: parsed.content };
@@ -222,6 +275,22 @@ async function runWhatsAppFollowUps(taskId) {
         appendLog('Enviando mensaje vía Evolution API...');
         const apiResponse = await sendWhatsAppMessage(lead.session, generatedMessage);
         appendLog(`Enviado con éxito. ID de mensaje: ${apiResponse.key?.id || 'Desconocido'}`);
+
+        // Registrar el mensaje de seguimiento en la base de datos
+        try {
+          const dbMessage = {
+            type: 'ai',
+            content: generatedMessage
+          };
+          await pool.query(
+            `INSERT INTO dinastia_chat_histories (session_id, message, created_at)
+             VALUES ($1, $2, NOW());`,
+            [lead.session, JSON.stringify(dbMessage)]
+          );
+          appendLog('✓ Mensaje de seguimiento registrado en la base de datos.');
+        } catch (dbSaveErr) {
+          appendLog(`⚠️ Error registrando mensaje en la base de datos: ${dbSaveErr.message}`);
+        }
 
       } catch (leadErr) {
         appendLog(`❌ Error procesando cliente ${lead.session}: ${leadErr.message}`);
