@@ -236,10 +236,10 @@ function renderSummaryTable(parsedLogs) {
     
     html += `
       <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.03);">
-        <td style="padding: 12px 10px; font-weight: 500; white-space: nowrap;">+${log.number}</td>
-        <td style="padding: 12px 10px; color: var(--text-primary); line-height: 1.4;">${log.message || '—'}</td>
-        <td style="padding: 12px 10px;">${idOrError}</td>
-        <td style="padding: 12px 10px; font-weight: 500; color: ${color}; white-space: nowrap;">${statusText}</td>
+        <td data-label="Teléfono" style="padding: 12px 10px; font-weight: 500; white-space: nowrap;">+${log.number}</td>
+        <td data-label="Mensaje" style="padding: 12px 10px; color: var(--text-primary); line-height: 1.4;">${log.message || '—'}</td>
+        <td data-label="ID Envío / Detalles" style="padding: 12px 10px;">${idOrError}</td>
+        <td data-label="Estado" style="padding: 12px 10px; font-weight: 500; color: ${color}; white-space: nowrap;">${statusText}</td>
       </tr>
     `;
   });
